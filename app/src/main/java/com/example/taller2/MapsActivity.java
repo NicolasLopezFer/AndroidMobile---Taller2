@@ -63,6 +63,7 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
     public static final double lowerLeftLongitude= -78.903968;
     public static final double upperRightLatitude= 11.983639;
     public static final double upperRigthLongitude= -71.869905;
+    private static final int RADIUS_OF_EARTH_KM = 6371;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -180,6 +181,11 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
                                     searchMarker=mMap.addMarker(new MarkerOptions().position(position).icon(BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_BLUE)));
                                     mMap.moveCamera(CameraUpdateFactory.newLatLng(position));
                                     mMap.moveCamera(CameraUpdateFactory.zoomTo(15));
+                                    Double latitude1 = searchMarker.getPosition().latitude;
+                                    Double latitude2 = locationMarker.getPosition().latitude;
+                                    Double longitude1 = searchMarker.getPosition().longitude;
+                                    Double longitude2 = locationMarker.getPosition().longitude;
+                                    Toast.makeText(MapsActivity.this, "La distancia es: " + distance(latitude1,longitude1,latitude2,longitude2)+" Km", Toast.LENGTH_SHORT).show();
                                 }
                             } else {Toast.makeText(MapsActivity.this, "Dirección no encontrada", Toast.LENGTH_SHORT).show();}
                         }
@@ -201,6 +207,11 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
                     searchMarker.remove();
                 }
                 searchMarker=mMap.addMarker(new MarkerOptions().position(latLng).title(geoCoderSearchLatLang(latLng)));
+                Double latitude1 = searchMarker.getPosition().latitude;
+                Double latitude2 = locationMarker.getPosition().latitude;
+                Double longitude1 = searchMarker.getPosition().longitude;
+                Double longitude2 = locationMarker.getPosition().longitude;
+                Toast.makeText(MapsActivity.this, "La distancia es: " + distance(latitude1,longitude1,latitude2,longitude2)+" Km", Toast.LENGTH_SHORT).show();
 
             }
         });
@@ -230,6 +241,20 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
         InputMethodManager inputMethodManager = (InputMethodManager)activity.getSystemService(Activity.INPUT_METHOD_SERVICE);
         inputMethodManager.hideSoftInputFromWindow(activity.getCurrentFocus().getWindowToken(), 0);
     }
+
+
+    public double distance(double lat1, double long1, double lat2, double long2) {
+        double latDistance = Math.toRadians(lat1 - lat2);
+        double lngDistance = Math.toRadians(long1 - long2);
+        double a = Math.sin(latDistance / 2) * Math.sin(latDistance / 2)
+                + Math.cos(Math.toRadians(lat1)) * Math.cos(Math.toRadians(lat2))
+                * Math.sin(lngDistance / 2) * Math.sin(lngDistance / 2);
+        double c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+        double result = RADIUS_OF_EARTH_KM * c;
+        return Math.round(result*100.0)/100.0;
+    }
+
+
 
 
 }
