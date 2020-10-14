@@ -1,12 +1,15 @@
 package com.example.taller2;
 
+import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
 import androidx.core.content.ContextCompat;
 import androidx.fragment.app.FragmentActivity;
 
 import android.Manifest;
 import android.app.Activity;
+import android.content.Intent;
+import android.content.IntentSender;
 import android.content.pm.PackageManager;
-import android.graphics.Bitmap;
 import android.graphics.Color;
 import android.hardware.Sensor;
 import android.hardware.SensorEvent;
@@ -25,22 +28,31 @@ import android.widget.EditText;
 import android.widget.TextView;
 import android.widget.Toast;
 
+import com.google.android.gms.common.api.ApiException;
+import com.google.android.gms.common.api.CommonStatusCodes;
+import com.google.android.gms.common.api.ResolvableApiException;
 import com.google.android.gms.location.FusedLocationProviderClient;
 import com.google.android.gms.location.LocationCallback;
 import com.google.android.gms.location.LocationRequest;
 import com.google.android.gms.location.LocationResult;
 import com.google.android.gms.location.LocationServices;
+import com.google.android.gms.location.LocationSettingsRequest;
+import com.google.android.gms.location.LocationSettingsResponse;
+import com.google.android.gms.location.LocationSettingsStatusCodes;
+import com.google.android.gms.location.SettingsClient;
 import com.google.android.gms.maps.CameraUpdateFactory;
 import com.google.android.gms.maps.GoogleMap;
 import com.google.android.gms.maps.OnMapReadyCallback;
 import com.google.android.gms.maps.SupportMapFragment;
-import com.google.android.gms.maps.model.BitmapDescriptor;
 import com.google.android.gms.maps.model.BitmapDescriptorFactory;
 import com.google.android.gms.maps.model.LatLng;
 import com.google.android.gms.maps.model.MapStyleOptions;
 import com.google.android.gms.maps.model.Marker;
 import com.google.android.gms.maps.model.MarkerOptions;
 import com.google.android.gms.maps.model.PolylineOptions;
+import com.google.android.gms.tasks.OnFailureListener;
+import com.google.android.gms.tasks.OnSuccessListener;
+import com.google.android.gms.tasks.Task;
 import com.google.maps.DirectionsApi;
 import com.google.maps.DirectionsApiRequest;
 import com.google.maps.GeoApiContext;
@@ -59,9 +71,6 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
 
     private static final int LOCATION_CODE = 11;
     private GoogleMap mMap;
-    private FusedLocationProviderClient fusedLocationProviderClient;
-    private LocationRequest locationRequest;
-    private LocationCallback locationCallback;
     private int contador = 0;
     private SensorManager sensorManager;
     private Sensor lightSensor;
@@ -76,6 +85,12 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
     public static final double upperRightLatitude= 11.983639;
     public static final double upperRigthLongitude= -71.869905;
     private static final int RADIUS_OF_EARTH_KM = 6371;
+    private static final int REQUEST_CHECK_SETTINGS = 12;
+
+    private FusedLocationProviderClient fusedLocationProviderClient;
+    private LocationRequest locationRequest;
+    private LocationCallback locationCallback;
+
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -83,6 +98,17 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
         setContentView(R.layout.activity_maps);
 
         fusedLocationProviderClient = LocationServices.getFusedLocationProviderClient(this);
+        locationRequest = createLocationRequest();
+        locationCallback = new LocationCallback(){
+            @Override
+            public void onLocationResult(LocationResult locationResult) {
+                Location location = locationResult.getLastLocation();
+                Log.i("LOCATION","Location update in the callback:"+location);
+                if(location!=null){
+                    updateLocation();
+                }
+            }
+        };
 
         direccion = findViewById(R.id.direccion);
 
@@ -102,31 +128,32 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
 
     }
 
+    private LocationRequest createLocationRequest() {
+        LocationRequest myRequest = new LocationRequest();
+        myRequest.setInterval(1000);
+        myRequest.setFastestInterval(5000);
+        myRequest.setPriority(LocationRequest.PRIORITY_HIGH_ACCURACY);
+        return  myRequest;
+    }
+
     @Override
     protected void onResume() {
         super.onResume();
         sensorManager.registerListener(lightSensorListener,lightSensor,SensorManager.SENSOR_DELAY_NORMAL);
+        startLocationUpdates();
+
     }
 
     @Override
     protected void onPause() {
         super.onPause();
         sensorManager.unregisterListener(lightSensorListener);
-    }
-
-    private void setMarker(LocationResult locationResult) {
-        Location location = locationResult.getLastLocation();
-        LatLng myLocation = new LatLng(location.getLatitude(),location.getLongitude());
-        locationMarker = mMap.addMarker(new MarkerOptions().position(myLocation).title("Tú"));
-        if(contador == 0){
-            mMap.moveCamera(CameraUpdateFactory.newLatLng(myLocation));
-            mMap.moveCamera(CameraUpdateFactory.zoomTo(15));
-            contador+=1;
-        }else{
-            locationMarker.remove();
-        }
 
     }
+
+
+
+
 
     /**
      * Manipulates the map once available.
@@ -143,16 +170,7 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
         mMap.getUiSettings().setZoomGesturesEnabled(true);
         mMap.getUiSettings().setZoomControlsEnabled(true);
 
-        if(ContextCompat.checkSelfPermission(this,Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED){
-            locationCallback = new LocationCallback() {
-                @Override
-                public void onLocationResult(LocationResult locationResult) {
-                    super.onLocationResult(locationResult);
-                    setMarker(locationResult);
-                }
-            };
-            fusedLocationProviderClient.requestLocationUpdates(createLocationRequest(),locationCallback, Looper.myLooper());
-        }
+
 
         lightSensorListener = new SensorEventListener() {
             @Override
@@ -233,6 +251,8 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
 
     }
 
+
+
     private void getRoute(Double latitude1,Double longitude1,Double latitude2,Double longitude2) {
 
         String origen = latitude1.toString()+","+longitude1.toString();
@@ -310,13 +330,6 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
         return finalName;
     }
 
-    protected LocationRequest createLocationRequest(){
-        LocationRequest locationRequest = new LocationRequest();
-        locationRequest.setInterval(10000); //tasa de refresco en milisegundos
-        locationRequest.setFastestInterval(5000); //máxima tasa de refresco
-        locationRequest.setPriority(LocationRequest.PRIORITY_HIGH_ACCURACY);
-        return locationRequest;
-    }
 
     public static void hideSoftKeyboard(Activity activity) {
         InputMethodManager inputMethodManager = (InputMethodManager)activity.getSystemService(Activity.INPUT_METHOD_SERVICE);
@@ -336,6 +349,104 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
     }
 
 
+    @Override
+    public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions, @NonNull int[] grantResults) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults);
+        switch (requestCode){
+            case LOCATION_CODE:
+                updateLocation();
+                return;
+        }
+    }
+
+    private void updateLocation() {
+        if(mMap != null) {
+            if (ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED) {
+
+                LocationSettingsRequest.Builder builder = new LocationSettingsRequest.Builder().addLocationRequest(locationRequest);
+                SettingsClient client = LocationServices.getSettingsClient(this);
+                Task<LocationSettingsResponse> task = client.checkLocationSettings(builder.build());
+
+                /*Si el GPS esta prendido se registra en los updates*/
+                task.addOnSuccessListener(this, new OnSuccessListener<LocationSettingsResponse>() {
+                    @Override
+                    public void onSuccess(LocationSettingsResponse locationSettingsResponse) {
+                        startLocationUpdates();
+                    }
+                });
+
+                /*Si el GPS esta apagado pregunta si lo puede prender*/
+                task.addOnFailureListener(this, new OnFailureListener() {
+                    @Override
+                    public void onFailure(@NonNull Exception e) {
+                        int statusCode = ((ApiException) e).getStatusCode();
+                        switch (statusCode){
+                            case CommonStatusCodes
+                                    .RESOLUTION_REQUIRED:
+                                try{
+                                    ResolvableApiException resolvableApiException = (ResolvableApiException) e;
+                                    resolvableApiException.startResolutionForResult(MapsActivity.this,REQUEST_CHECK_SETTINGS); //Empieza una actividad.
+                                } catch (IntentSender.SendIntentException ex) {
+                                    ex.printStackTrace();
+                                }
+                                break;
+                            case LocationSettingsStatusCodes
+                                    .SETTINGS_CHANGE_UNAVAILABLE:
+                                break;
+                        }
+                    }
+                });
+
+                fusedLocationProviderClient.getLastLocation().addOnSuccessListener(this, new OnSuccessListener<Location>() {
+                    @Override
+                    public void onSuccess(Location location) {
+                        Log.i("LOCATION", "onSuccess location");
+                        if (location != null) {
+                            Log.i(" LOCATION ", "Longitud: " + location.getLongitude());
+                            Log.i(" LOCATION ", "Latitud: " + location.getLatitude());
+                            placeMarker(location);
+                        }
+                    }
+                });
+
+            }
+        }
+    }
+
+    private void placeMarker(Location location) {
+        if(locationMarker!=null){
+            locationMarker.remove();
+        }
+        LatLng myLocation = new LatLng(location.getLatitude(),location.getLongitude());
+        locationMarker = mMap.addMarker(new MarkerOptions().position(myLocation).title("Tú"));
+        if(contador == 0){
+            mMap.moveCamera(CameraUpdateFactory.newLatLng(myLocation));
+            mMap.moveCamera(CameraUpdateFactory.zoomTo(15));
+            contador+=1;
+        }
+    }
+
+    private void startLocationUpdates(){
+        if(ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED){
+            fusedLocationProviderClient.requestLocationUpdates(locationRequest,locationCallback,Looper.getMainLooper());
+        }
+    }
+
+    @Override
+    protected void onActivityResult(int requestCode, int resultCode, @Nullable Intent data) {
+        super.onActivityResult(requestCode, resultCode, data);
+        switch (requestCode) {
+            case REQUEST_CHECK_SETTINGS: {
+                if (resultCode == RESULT_OK) {
+                    startLocationUpdates();
+                } else {
+                    Toast.makeText(this, "Sin acceso a la localizacion, hardware deshabilidato!", Toast.LENGTH_SHORT).show();
+                }
+                return;
+            }
+
+        }
+    }
 
 
 }
