@@ -91,13 +91,14 @@ public class ShowImageActivity extends AppCompatActivity {
                         e.printStackTrace();
                     }
                 }
-                return;
+                break;
             case REQUEST_IMAGE_CAPTURE:
                 if(resultCode == RESULT_OK){
                     Bundle extras = data.getExtras();
                     Bitmap bitmap = (Bitmap) extras.get("data");
                     image.setImageBitmap(bitmap);
                 }
+                break;
         }
     }
 
